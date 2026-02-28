@@ -1,0 +1,26 @@
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    API_BASE_URL=http://api:8000
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir streamlit plotly httpx python-dotenv pydantic pydantic-settings
+
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid 1000 --create-home appuser
+
+COPY dashboard/ dashboard/
+COPY app/constants/ app/constants/
+COPY app/models/schemas.py app/models/schemas.py
+COPY app/__init__.py app/__init__.py
+COPY app/models/__init__.py app/models/__init__.py
+COPY app/constants/__init__.py app/constants/__init__.py
+
+RUN chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8501
+
+CMD ["streamlit", "run", "dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
