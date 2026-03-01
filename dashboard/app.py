@@ -1,9 +1,16 @@
 import os
+import sys
+from pathlib import Path
 from typing import Any
 
 import httpx
 import plotly.express as px
 import streamlit as st
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from app.constants.app_groups import APP_GROUPS, APP_NAMES  # noqa: E402
+from app.models.schemas import ReviewSortOrder  # noqa: E402
 
 JsonDict = dict[str, Any]
 
@@ -11,19 +18,55 @@ API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 API_PREFIX = f"{API_BASE_URL}/api/v1"
 
 
+def display_app_name(app_id: str) -> str:
+    name = APP_NAMES.get(app_id)
+    return f"{name} ({app_id})" if name else app_id
+
+
 def api_get(path: str) -> JsonDict | None:
     try:
-        resp = httpx.get(f"{API_PREFIX}{path}", timeout=60.0)
+        resp = httpx.get(f"{API_PREFIX}{path}", timeout=300.0)
+        if resp.status_code == 404:
+            return None
         resp.raise_for_status()
         return resp.json()
     except httpx.HTTPError as e:
         st.error(f"API error: {e}")
         return None
+
+
+def ensure_reviews_collected(app_id: str, country: str, max_pages: int, sort_by: str) -> bool:
+    """Auto-collect reviews if none exist. Returns True if reviews are available."""
+    collected_key = f"collected_{app_id}"
+    if st.session_state.get(collected_key):
+        return True
+    check = api_get(f"/metrics/{app_id}")
+    if check and check.get("total_reviews", 0) > 0:
+        st.session_state[collected_key] = True
+        return True
+    with st.spinner(f"Collecting reviews for {display_app_name(app_id)}..."):
+        result = api_post(
+            "/reviews/collect",
+            {
+                "app_id": app_id,
+                "country": country,
+                "max_pages": max_pages,
+                "sort_by": sort_by,
+            },
+        )
+        if result and result.get("collected", 0) > 0:
+            st.session_state[collected_key] = True
+            st.success(
+                f"Auto-collected {result['collected']} reviews for {display_app_name(app_id)}"
+            )
+            return True
+    st.warning(f"No reviews found for {display_app_name(app_id)}")
+    return False
 
 
 def api_post(path: str, json_data: dict[str, Any]) -> JsonDict | None:
     try:
-        resp = httpx.post(f"{API_PREFIX}{path}", json=json_data, timeout=120.0)
+        resp = httpx.post(f"{API_PREFIX}{path}", json=json_data, timeout=300.0)
         resp.raise_for_status()
         return resp.json()
     except httpx.HTTPError as e:
@@ -31,22 +74,67 @@ def api_post(path: str, json_data: dict[str, Any]) -> JsonDict | None:
         return None
 
 
-st.set_page_config(page_title="App Review Analysis", page_icon="📊", layout="wide")
+st.set_page_config(page_title="App Review Analysis", page_icon="\U0001f4ca", layout="wide")
 st.title("Apple Store Review Analysis")
 
 with st.sidebar:
     st.header("Configuration")
-    app_id = st.text_input("App ID", value="389801252", help="Apple App Store numeric ID")
+
+    input_mode = st.radio("Select app by", ["Predefined app", "Custom ID"], horizontal=True)
+
+    if input_mode == "Predefined app":
+        group_name = st.selectbox("App group", list(APP_GROUPS.keys()))
+        apps_in_group = APP_GROUPS[group_name]
+        app_options = {f"{name} ({app_id})": app_id for name, app_id in apps_in_group}
+        selected_label = st.selectbox("App", list(app_options.keys()))
+        app_id = app_options[selected_label]
+    else:
+        group_name = list(APP_GROUPS.keys())[0]
+        app_id = st.text_input("App ID", value="389801252", help="Apple App Store numeric ID")
+
     country = st.selectbox("Country", ["us", "gb", "de", "fr", "jp", "au", "ca"])
+
+    sort_labels = {
+        ReviewSortOrder.MOST_RECENT: "Most Recent",
+        ReviewSortOrder.MOST_HELPFUL: "Most Helpful",
+    }
+    selected_sort_label = st.selectbox(
+        "Sort reviews by",
+        list(sort_labels.values()),
+        help="How Apple sorts the reviews before returning them",
+    )
+    sort_by = next(k for k, v in sort_labels.items() if v == selected_sort_label)
+
+    max_pages = st.number_input(
+        "Pages to collect",
+        min_value=1,
+        max_value=10,
+        value=10,
+        help="Each page contains ~50 reviews",
+    )
 
     if st.button("Collect Reviews", type="primary"):
         with st.spinner("Collecting reviews..."):
-            result = api_post("/reviews/collect", {"app_id": app_id, "country": country})
+            result = api_post(
+                "/reviews/collect",
+                {
+                    "app_id": app_id,
+                    "country": country,
+                    "max_pages": max_pages,
+                    "sort_by": sort_by,
+                },
+            )
             if result:
+                st.session_state.pop(f"collected_{app_id}", None)
                 st.success(
                     f"Collected {result['collected']} reviews "
                     f"({result['new']} new, {result['duplicates']} duplicates)"
                 )
+
+    st.divider()
+    st.caption(f"Selected: **{display_app_name(app_id)}**")
+
+has_reviews = ensure_reviews_collected(app_id, country, max_pages, sort_by)
 
 tab_overview, tab_sentiment, tab_aspects, tab_keywords, tab_rag, tab_competitive = st.tabs(
     [
@@ -61,6 +149,8 @@ tab_overview, tab_sentiment, tab_aspects, tab_keywords, tab_rag, tab_competitive
 
 with tab_overview:
     metrics = api_get(f"/metrics/{app_id}")
+    if not metrics:
+        st.info("No reviews collected yet. Use the sidebar to collect reviews.")
     if metrics:
         col1, col2 = st.columns(2)
         col1.metric("Total Reviews", metrics["total_reviews"])
@@ -71,14 +161,16 @@ with tab_overview:
             dist,
             x="rating",
             y="count",
-            title="Rating Distribution",
+            title=f"Rating Distribution — {display_app_name(app_id)}",
             labels={"rating": "Stars", "count": "Count"},
             color="rating",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 with tab_sentiment:
     sentiment = api_get(f"/sentiment/{app_id}")
+    if not sentiment:
+        st.info("No sentiment data available. Collect reviews first.")
     if sentiment:
         st.subheader(f"Analyzed {sentiment['total_analyzed']} reviews")
 
@@ -98,10 +190,12 @@ with tab_sentiment:
             names=["Positive", "Negative", "Neutral"],
             title="VADER Sentiment Distribution",
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
 with tab_aspects:
     aspects = api_get(f"/aspects/{app_id}")
+    if not aspects:
+        st.info("No aspect data available. Collect reviews first.")
     if aspects and aspects["aspects"]:
         fig = px.bar(
             aspects["aspects"],
@@ -111,7 +205,7 @@ with tab_aspects:
             title="Aspect-Based Sentiment",
             labels={"category": "Aspect", "sentiment_score": "Sentiment Score"},
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width="stretch")
 
         for aspect in aspects["aspects"]:
             with st.expander(f"{aspect['category']} ({aspect['mention_count']} mentions)"):
@@ -120,6 +214,8 @@ with tab_aspects:
 
 with tab_keywords:
     insights = api_get(f"/insights/{app_id}")
+    if not insights:
+        st.info("No keyword data available. Collect reviews first.")
     if insights:
         keyword_insights = [
             i for i in insights["insights"] if i["category"] == "negative_keywords"
@@ -141,12 +237,14 @@ with tab_keywords:
                     orientation="h",
                     title="Top Negative Keywords",
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
 
         for insight in insights["insights"]:
-            severity_color = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(
-                insight["severity"], "⚪"
-            )
+            severity_color = {
+                "high": "\U0001f534",
+                "medium": "\U0001f7e1",
+                "low": "\U0001f7e2",
+            }.get(insight["severity"], "\u26aa")
             st.write(f"{severity_color} **[{insight['severity'].upper()}]** {insight['message']}")
 
 with tab_rag:
@@ -183,23 +281,41 @@ with tab_rag:
 
 with tab_competitive:
     st.subheader("Compare multiple apps")
-    compare_ids = st.text_input(
-        "App IDs (comma-separated)",
-        placeholder="389801252,310633997",
+
+    compare_mode = st.radio(
+        "Select apps by", ["Predefined group", "Custom IDs"], horizontal=True, key="compare_mode"
     )
 
-    if st.button("Compare") and compare_ids:
-        ids = [x.strip() for x in compare_ids.split(",") if x.strip()]
-        if len(ids) < 2:
-            st.error("Enter at least 2 app IDs")
+    if compare_mode == "Predefined group":
+        st.session_state["compare_group"] = group_name
+        compare_apps = APP_GROUPS[group_name]
+        compare_ids_list = [app_id_val for _, app_id_val in compare_apps]
+        st.caption("Apps: " + ", ".join(f"{name} ({aid})" for name, aid in compare_apps))
+    else:
+        compare_ids_input = st.text_input(
+            "App IDs (comma-separated)",
+            placeholder="389801252,310633997",
+        )
+        compare_ids_list = (
+            [x.strip() for x in compare_ids_input.split(",") if x.strip()]
+            if compare_ids_input
+            else []
+        )
+
+    if st.button("Compare") and compare_ids_list:
+        if len(compare_ids_list) < 2:
+            st.error("Need at least 2 apps to compare")
         else:
             with st.spinner("Comparing apps..."):
-                result = api_post("/competitive/compare", {"app_ids": ids, "country": country})
+                result = api_post(
+                    "/competitive/compare",
+                    {"app_ids": compare_ids_list, "country": country},
+                )
                 if result:
                     cols = st.columns(len(result["apps"]))
                     for col, app_data in zip(cols, result["apps"], strict=True):
                         with col:
-                            st.metric("App ID", app_data["app_id"])
+                            st.metric("App", display_app_name(app_data["app_id"]))
                             st.metric("Avg Rating", f"{app_data['average_rating']:.2f}")
                             st.metric("Avg Sentiment", f"{app_data['average_sentiment']:.3f}")
                             st.write("**Keywords:**", ", ".join(app_data["top_keywords"][:5]))
