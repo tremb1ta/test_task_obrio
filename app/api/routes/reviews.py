@@ -30,6 +30,7 @@ async def collect_reviews(
         session=session,
         country=body.country,
         max_pages=body.max_pages,
+        sort_by=body.sort_by,
     )
     await services.preprocessing.preprocess_reviews(body.app_id, session)
     return CollectResponse(

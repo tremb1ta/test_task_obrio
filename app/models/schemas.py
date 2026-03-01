@@ -9,6 +9,11 @@ class ExportFormat(StrEnum):
     JSON = "json"
 
 
+class ReviewSortOrder(StrEnum):
+    MOST_HELPFUL = "mosthelpful"
+    MOST_RECENT = "mostrecent"
+
+
 class SentimentLabel(StrEnum):
     POSITIVE = "positive"
     NEGATIVE = "negative"
@@ -53,7 +58,8 @@ class CollectRequest(BaseModel):
         examples=["389801252"],
     )
     country: str = Field(default="us", max_length=2)
-    max_pages: int = Field(default=2, ge=1, le=10)
+    max_pages: int = Field(default=10, ge=1, le=10)
+    sort_by: ReviewSortOrder = ReviewSortOrder.MOST_RECENT
 
 
 class CollectResponse(BaseModel):

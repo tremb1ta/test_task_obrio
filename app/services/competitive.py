@@ -25,7 +25,7 @@ class CompetitiveService:
             reviews = result.scalars().all()
 
             if not reviews:
-                await self._scraper.collect(app_id, session, country=country, max_pages=2)
+                await self._scraper.collect(app_id, session, country=country, max_pages=10)
                 await self._preprocessing.preprocess_reviews(app_id, session)
                 await self._sentiment.analyze_reviews(app_id, session)
 

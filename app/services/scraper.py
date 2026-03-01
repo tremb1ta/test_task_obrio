@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import httpx
+from sqlalchemy import delete
 from sqlalchemy.dialects.sqlite import insert as sqlite_upsert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,7 +24,7 @@ class ScrapeResult:
 
 class ReviewScraper:
     RSS_URL_TEMPLATE = (
-        "{base_url}/{country}/rss/customerreviews/page={page}/id={app_id}/sortby=mostrecent/json"
+        "{base_url}/{country}/rss/customerreviews/page={page}/id={app_id}/sortby={sort_by}/json"
     )
 
     def __init__(
@@ -40,13 +41,15 @@ class ReviewScraper:
         session: AsyncSession,
         country: str = "us",
         max_pages: int = 2,
+        sort_by: str = "mostrecent",
     ) -> ScrapeResult:
         try:
-            raw_reviews = await self._fetch_all_pages(app_id, country, max_pages)
+            raw_reviews = await self._fetch_all_pages(app_id, country, max_pages, sort_by)
         except Exception:
             logger.exception("RSS feed failed for app_id=%s", app_id)
             raise
 
+        await session.execute(delete(Review).where(Review.app_id == app_id))
         result = await self._persist_reviews(app_id, raw_reviews, session)
         return ScrapeResult(
             app_id=app_id,
@@ -56,7 +59,9 @@ class ReviewScraper:
             source="rss_feed",
         )
 
-    async def _fetch_all_pages(self, app_id: str, country: str, max_pages: int) -> list[dict]:
+    async def _fetch_all_pages(
+        self, app_id: str, country: str, max_pages: int, sort_by: str = "mostrecent"
+    ) -> list[dict]:
         all_reviews: list[dict] = []
         async with httpx.AsyncClient(timeout=self._timeout) as client:
             for page in range(1, max_pages + 1):
@@ -65,6 +70,7 @@ class ReviewScraper:
                     country=country,
                     page=page,
                     app_id=app_id,
+                    sort_by=sort_by,
                 )
                 try:
                     response = await client.get(url)
