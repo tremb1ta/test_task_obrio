@@ -153,8 +153,15 @@ class InsightsService:
                 response.raise_for_status()
                 data = response.json()
                 content = data["choices"][0]["message"]["content"]
-                parsed = json.loads(content)
-                return parsed["narrative"]
+                try:
+                    parsed = json.loads(content)
+                    narrative = parsed.get("narrative") or content
+                except json.JSONDecodeError:
+                    narrative = content
+                narrative = narrative.strip()
+                if not narrative or len(narrative) < 3:
+                    return None
+                return narrative
         except Exception:
             logger.exception("Narrative generation failed")
             return None

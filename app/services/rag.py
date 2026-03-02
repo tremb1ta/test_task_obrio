@@ -137,9 +137,20 @@ class RAGService:
                 response.raise_for_status()
                 data = response.json()
                 content = data["choices"][0]["message"]["content"]
-                parsed = json.loads(content)
+                try:
+                    parsed = json.loads(content)
+                    answer = parsed.get("answer") or content
+                except json.JSONDecodeError:
+                    answer = content
+                answer = answer.strip()
+                if not answer or len(answer) < 3:
+                    return {
+                        "answer": None,
+                        "model_used": None,
+                        "mode": "retrieval_only",
+                    }
                 return {
-                    "answer": parsed["answer"],
+                    "answer": answer,
                     "model_used": self._settings.openrouter_model,
                     "mode": "rag",
                 }
@@ -194,9 +205,14 @@ class RAGService:
                 response.raise_for_status()
                 data = response.json()
                 content = data["choices"][0]["message"]["content"]
-                parsed = json.loads(content)
+                try:
+                    parsed = json.loads(content)
+                    questions = parsed.get("questions", [])
+                except json.JSONDecodeError:
+                    logger.warning("Malformed JSON from LLM in suggest_questions")
+                    questions = []
                 return {
-                    "questions": parsed["questions"][:num_questions],
+                    "questions": questions[:num_questions],
                     "model_used": self._settings.openrouter_model,
                 }
         except Exception:
