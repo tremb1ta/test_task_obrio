@@ -4,13 +4,14 @@ from pathlib import Path
 
 import nltk
 import spacy
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from sentence_transformers import SentenceTransformer
 from transformers import pipeline as hf_pipeline
 
+from app.api.dependencies import verify_basic_auth
 from app.api.middleware import RequestLoggingMiddleware
 from app.api.routes.competitive import router as competitive_router
 from app.api.routes.health import router as health_router
@@ -112,11 +113,12 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    auth = [Depends(verify_basic_auth)]
     application.include_router(health_router)
-    application.include_router(reviews_router, prefix=settings.api_prefix)
-    application.include_router(metrics_router, prefix=settings.api_prefix)
-    application.include_router(rag_router, prefix=settings.api_prefix)
-    application.include_router(competitive_router, prefix=settings.api_prefix)
+    application.include_router(reviews_router, prefix=settings.api_prefix, dependencies=auth)
+    application.include_router(metrics_router, prefix=settings.api_prefix, dependencies=auth)
+    application.include_router(rag_router, prefix=settings.api_prefix, dependencies=auth)
+    application.include_router(competitive_router, prefix=settings.api_prefix, dependencies=auth)
 
     return application
 

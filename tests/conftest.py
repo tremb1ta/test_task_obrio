@@ -1,7 +1,11 @@
+import os
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+os.environ.setdefault("BASIC_AUTH_USER", "testuser")
+os.environ.setdefault("BASIC_AUTH_PASS", "testpass")
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
@@ -92,7 +96,7 @@ def mock_services():
 
 @pytest.fixture
 async def test_client(mock_services, async_session):
-    from app.api.dependencies import get_db_session
+    from app.api.dependencies import get_db_session, verify_basic_auth
     from app.main import create_app
 
     application = create_app()
@@ -101,6 +105,7 @@ async def test_client(mock_services, async_session):
         yield async_session
 
     application.dependency_overrides[get_db_session] = override_db
+    application.dependency_overrides[verify_basic_auth] = lambda: None
     application.state.services = mock_services
     application.state.models_loaded = {"spacy": True, "vader": True}
 

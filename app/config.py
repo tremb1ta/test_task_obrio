@@ -32,7 +32,10 @@ class Settings(BaseSettings):
     scraper_timeout: float = 30.0
     scraper_max_pages: int = 10
 
+    basic_auth_user: str
+    basic_auth_pass: str
+
     log_level: str = "info"
 
 
-settings = Settings()
+settings = Settings()  # type: ignore[call-arg]

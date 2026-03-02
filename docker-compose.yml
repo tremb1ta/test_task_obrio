@@ -13,6 +13,8 @@ services:
     - CHROMA_PERSIST_DIR=./data/chroma
     - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
     - OPENROUTER_MODEL=${OPENROUTER_MODEL:-moonshotai/kimi-k2.5}
+    - BASIC_AUTH_USER=${BASIC_AUTH_USER}
+    - BASIC_AUTH_PASS=${BASIC_AUTH_PASS}
     - LOG_LEVEL=${LOG_LEVEL:-info}
     healthcheck:
       test: [CMD, python, -c, import httpx; httpx.get('http://localhost:8000/health').raise_for_status()]
@@ -32,6 +34,8 @@ services:
     - 8501:8501
     environment:
     - API_BASE_URL=http://api:8000
+    - BASIC_AUTH_USER=${BASIC_AUTH_USER}
+    - BASIC_AUTH_PASS=${BASIC_AUTH_PASS}
     depends_on:
       api:
         condition: service_healthy

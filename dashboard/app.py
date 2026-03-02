@@ -1,4 +1,5 @@
 import os
+import secrets
 import sys
 from pathlib import Path
 from typing import Any
@@ -6,13 +7,18 @@ from typing import Any
 import httpx
 import plotly.express as px
 import streamlit as st
+from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from app.constants.app_groups import APP_GROUPS, APP_NAMES  # noqa: E402
 from app.models.schemas import ReviewSortOrder  # noqa: E402
 
 JsonDict = dict[str, Any]
+
+BASIC_AUTH_USER = os.environ["BASIC_AUTH_USER"]
+BASIC_AUTH_PASS = os.environ["BASIC_AUTH_PASS"]
 
 
 def escape_latex(text: str) -> str:
@@ -29,9 +35,13 @@ def display_app_name(app_id: str) -> str:
     return f"{name} ({app_id})" if name else app_id
 
 
+def api_auth() -> httpx.BasicAuth:
+    return httpx.BasicAuth(BASIC_AUTH_USER, BASIC_AUTH_PASS)
+
+
 def api_get(path: str) -> JsonDict | None:
     try:
-        resp = httpx.get(f"{API_PREFIX}{path}", timeout=300.0)
+        resp = httpx.get(f"{API_PREFIX}{path}", timeout=300.0, auth=api_auth())
         if resp.status_code == 404:
             return None
         resp.raise_for_status()
@@ -72,7 +82,7 @@ def ensure_reviews_collected(app_id: str, country: str, max_pages: int, sort_by:
 
 def api_post(path: str, json_data: dict[str, Any]) -> JsonDict | None:
     try:
-        resp = httpx.post(f"{API_PREFIX}{path}", json=json_data, timeout=300.0)
+        resp = httpx.post(f"{API_PREFIX}{path}", json=json_data, timeout=300.0, auth=api_auth())
         resp.raise_for_status()
         return resp.json()
     except httpx.HTTPError as e:
@@ -81,6 +91,21 @@ def api_post(path: str, json_data: dict[str, Any]) -> JsonDict | None:
 
 
 st.set_page_config(page_title="App Review Analysis", page_icon="\U0001f4ca", layout="wide")
+
+if not st.session_state.get("authenticated"):
+    st.title("Login")
+    username = st.text_input("Username")
+    password = st.text_input("Password", type="password")
+    if st.button("Login", type="primary"):
+        username_ok = secrets.compare_digest(username, BASIC_AUTH_USER)
+        password_ok = secrets.compare_digest(password, BASIC_AUTH_PASS)
+        if username_ok and password_ok:
+            st.session_state.authenticated = True
+            st.rerun()
+        else:
+            st.error("Invalid credentials")
+    st.stop()
+
 st.title("Apple Store Review Analysis")
 
 with st.sidebar:
