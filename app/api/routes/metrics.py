@@ -11,6 +11,7 @@ from app.models.schemas import (
     AspectsResponse,
     InsightsResponse,
     MetricsResponse,
+    NarrativeResponse,
     SentimentLabel,
     SentimentResponse,
     SentimentResult,
@@ -149,7 +150,7 @@ async def get_insights(
     return InsightsResponse(app_id=app_id, **result)
 
 
-@router.post("/insights/{app_id}/narrative")
+@router.post("/insights/{app_id}/narrative", response_model=NarrativeResponse)
 async def generate_narrative(
     app_id: str,
     session: AsyncSession = Depends(get_db_session),
@@ -186,4 +187,4 @@ async def generate_narrative(
     )
 
     narrative = await services.insights.generate_narrative(result["insights"], metrics_result)
-    return {"app_id": app_id, "narrative": narrative}
+    return NarrativeResponse(app_id=app_id, narrative=narrative)

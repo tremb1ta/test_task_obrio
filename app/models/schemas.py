@@ -194,3 +194,8 @@ class InsightsResponse(BaseModel):
     app_id: str
     insights: list[InsightItem]
     narrative: str | None = None
+
+
+class NarrativeResponse(BaseModel):
+    app_id: str
+    narrative: str | None = None
