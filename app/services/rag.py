@@ -1,13 +1,11 @@
 import json
-import logging
 
 import chromadb
 import httpx
+from loguru import logger
 from sentence_transformers import SentenceTransformer
 
 from app.config import Settings
-
-logger = logging.getLogger(__name__)
 
 
 class RAGService:
@@ -46,7 +44,9 @@ class RAGService:
             documents=texts,
             metadatas=metadatas,  # type: ignore[arg-type]
         )
-        logger.info("Indexed %d reviews for app_id=%s", len(reviews), app_id)
+        logger.info(
+            "Indexed {count} reviews for app_id={app_id}", count=len(reviews), app_id=app_id
+        )
         return len(reviews)
 
     def retrieve(
@@ -69,7 +69,7 @@ class RAGService:
         try:
             results = collection.query(**kwargs)
         except Exception:
-            logger.exception("ChromaDB query failed for app_id=%s", app_id)
+            logger.exception("ChromaDB query failed for app_id={app_id}", app_id=app_id)
             return []
 
         retrieved = []

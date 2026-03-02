@@ -1,6 +1,7 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,6 +43,7 @@ async def rag_query(
     ]
     await asyncio.to_thread(services.rag.index_reviews, body.app_id, review_dicts)
 
+    logger.info("RAG query for {app_id}: {question}", app_id=body.app_id, question=body.question)
     result = await services.rag.query(body.app_id, body.question, body.top_k)
     return RAGQueryResponse(**result)
 

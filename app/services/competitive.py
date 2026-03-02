@@ -1,11 +1,7 @@
-import logging
-
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.database import Review
-
-logger = logging.getLogger(__name__)
 
 
 class CompetitiveService:

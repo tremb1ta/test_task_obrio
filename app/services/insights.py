@@ -1,11 +1,9 @@
 import json
-import logging
 
 import httpx
+from loguru import logger
 
 from app.config import Settings
-
-logger = logging.getLogger(__name__)
 
 
 class InsightsService:

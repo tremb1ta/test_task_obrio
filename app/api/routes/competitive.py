@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_db_session, get_services
@@ -13,5 +14,6 @@ async def compare_apps(
     session: AsyncSession = Depends(get_db_session),
     services=Depends(get_services),
 ):
+    logger.info("Competitive comparison for {app_ids}", app_ids=body.app_ids)
     result = await services.competitive.compare(body.app_ids, body.country, session)
     return CompareResponse(**result)

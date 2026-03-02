@@ -32,6 +32,9 @@ env/
 htmlcov/
 .mypy_cache/
 
+# Logs
+logs/
+
 # Data persistence (runtime-generated)
 *.db
 *.sqlite

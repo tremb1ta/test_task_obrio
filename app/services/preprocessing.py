@@ -1,14 +1,12 @@
-import logging
 import re
 
+from loguru import logger
 from spacy.language import Language
 from spacy.tokens import Doc
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.database import Review
-
-logger = logging.getLogger(__name__)
 
 _PATTERNS = {
     "url": re.compile(r"https?://\S+"),
@@ -80,5 +78,7 @@ class PreprocessingService:
             review.content_clean = clean_text
 
         await session.commit()
-        logger.info("Preprocessed %d reviews for app_id=%s", len(reviews), app_id)
+        logger.info(
+            "Preprocessed {count} reviews for app_id={app_id}", count=len(reviews), app_id=app_id
+        )
         return len(reviews)

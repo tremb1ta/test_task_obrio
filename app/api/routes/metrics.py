@@ -1,6 +1,7 @@
 import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,6 +49,7 @@ async def get_sentiment(
 ):
     reviews = await _get_reviews(app_id, session)
 
+    logger.info("Sentiment analysis requested for {app_id}", app_id=app_id)
     unanalyzed = [r for r in reviews if r.vader_compound is None]
     if unanalyzed:
         await services.sentiment.analyze_reviews(app_id, session)
@@ -115,6 +117,7 @@ async def get_insights(
     services=Depends(get_services),
 ):
     reviews = await _get_reviews(app_id, session)
+    logger.info("Insights generation requested for {app_id}", app_id=app_id)
     review_dicts = [
         {
             "content": r.content,

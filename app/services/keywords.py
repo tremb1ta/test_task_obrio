@@ -1,9 +1,5 @@
-import logging
-
 from keybert import KeyBERT
 from sentence_transformers import SentenceTransformer
-
-logger = logging.getLogger(__name__)
 
 GENERIC_PHRASES = frozenset(
     {

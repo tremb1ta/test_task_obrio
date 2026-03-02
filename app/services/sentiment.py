@@ -1,13 +1,10 @@
-import logging
-
+from loguru import logger
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from transformers import Pipeline
 
 from app.models.database import Review
-
-logger = logging.getLogger(__name__)
 
 POSITIVE_THRESHOLD = 0.05
 NEGATIVE_THRESHOLD = -0.05
@@ -104,5 +101,9 @@ class SentimentService:
             review.transformer_label = sentiment["transformer"]["label"]
 
         await session.commit()
-        logger.info("Analyzed sentiment for %d reviews, app_id=%s", len(reviews), app_id)
+        logger.info(
+            "Analyzed sentiment for {count} reviews, app_id={app_id}",
+            count=len(reviews),
+            app_id=app_id,
+        )
         return len(reviews)

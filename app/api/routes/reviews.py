@@ -2,6 +2,7 @@ import re
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -33,6 +34,13 @@ async def collect_reviews(
         sort_by=body.sort_by,
     )
     await services.preprocessing.preprocess_reviews(body.app_id, session)
+    logger.info(
+        "Collected {collected} reviews for {app_id} ({new} new, {dupes} duplicates)",
+        collected=result.collected,
+        app_id=body.app_id,
+        new=result.new,
+        dupes=result.duplicates,
+    )
     return CollectResponse(
         app_id=result.app_id,
         collected=result.collected,

@@ -1,10 +1,7 @@
-import logging
 from collections import defaultdict
 
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from spacy.language import Language
-
-logger = logging.getLogger(__name__)
 
 ASPECT_CATEGORIES: dict[str, list[str]] = {
     "battery": ["battery", "battery life", "power", "charging", "battery drain", "charge"],

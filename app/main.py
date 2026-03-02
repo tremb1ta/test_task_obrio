@@ -1,4 +1,3 @@
-import logging
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -7,10 +6,12 @@ import nltk
 import spacy
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 from sentence_transformers import SentenceTransformer
 from transformers import pipeline as hf_pipeline
 
+from app.api.middleware import RequestLoggingMiddleware
 from app.api.routes.competitive import router as competitive_router
 from app.api.routes.health import router as health_router
 from app.api.routes.metrics import router as metrics_router
@@ -27,8 +28,7 @@ from app.services.preprocessing import PreprocessingService
 from app.services.rag import RAGService
 from app.services.scraper import ReviewScraper
 from app.services.sentiment import SentimentService
-
-logger = logging.getLogger(__name__)
+from app.utils.logger import setup_logging
 
 
 @dataclass
@@ -46,7 +46,7 @@ class ServiceRegistry:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logging.basicConfig(level=getattr(logging, settings.log_level.upper(), logging.INFO))
+    setup_logging()
 
     Path("data").mkdir(exist_ok=True)
     await init_db(settings.database_url)
@@ -103,6 +103,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    application.add_middleware(RequestLoggingMiddleware)
     application.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

@@ -16,6 +16,7 @@ dependencies = [
   "fastapi>=0.134.0",
   "httpx>=0.28.1",
   "keybert>=0.9.0",
+  "loguru>=0.7.3",
   "nltk>=3.9.3",
   "plotly>=5.0.0,<6.0.0",
   "pydantic-settings>=2.13.1",
