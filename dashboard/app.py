@@ -39,7 +39,7 @@ def api_auth() -> httpx.BasicAuth:
     return httpx.BasicAuth(BASIC_AUTH_USER, BASIC_AUTH_PASS)
 
 
-def api_get(path: str) -> JsonDict | None:
+def _api_get_raw(path: str) -> JsonDict | None:
     try:
         resp = httpx.get(f"{API_PREFIX}{path}", timeout=300.0, auth=api_auth())
         if resp.status_code == 404:
@@ -49,6 +49,11 @@ def api_get(path: str) -> JsonDict | None:
     except httpx.HTTPError as e:
         st.error(f"API error: {e}")
         return None
+
+
+@st.cache_data(ttl=300, show_spinner=False)
+def api_get(path: str) -> JsonDict | None:
+    return _api_get_raw(path)
 
 
 def ensure_reviews_collected(app_id: str, country: str, max_pages: int, sort_by: str) -> bool:
@@ -71,6 +76,7 @@ def ensure_reviews_collected(app_id: str, country: str, max_pages: int, sort_by:
             },
         )
         if result and result.get("collected", 0) > 0:
+            api_get.clear()
             st.session_state[collected_key] = True
             st.success(
                 f"Auto-collected {result['collected']} reviews for {display_app_name(app_id)}"
@@ -156,6 +162,7 @@ with st.sidebar:
                 },
             )
             if result:
+                api_get.clear()
                 st.session_state.pop(f"collected_{app_id}", None)
                 st.success(
                     f"Collected {result['collected']} reviews "
