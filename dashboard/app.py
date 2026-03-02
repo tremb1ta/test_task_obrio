@@ -247,6 +247,19 @@ with tab_keywords:
             }.get(insight["severity"], "\u26aa")
             st.write(f"{severity_color} **[{insight['severity'].upper()}]** {insight['message']}")
 
+        st.divider()
+        if st.button("Generate Actionable Insights", type="primary", key="gen_narrative"):
+            with st.spinner("Generating narrative via LLM..."):
+                narrative_result = api_post(f"/insights/{app_id}/narrative", {})
+                if narrative_result and narrative_result.get("narrative"):
+                    st.subheader("Actionable Recommendations")
+                    st.write(narrative_result["narrative"])
+                else:
+                    st.warning(
+                        "Could not generate narrative. "
+                        "Check that OPENROUTER_API_KEY is configured."
+                    )
+
 with tab_rag:
     st.subheader("Ask questions about reviews")
     question = st.text_input("Your question", placeholder="What do users complain about most?")

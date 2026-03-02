@@ -144,3 +144,43 @@ async def get_insights(
         metrics=metrics_result,
     )
     return InsightsResponse(app_id=app_id, **result)
+
+
+@router.post("/insights/{app_id}/narrative")
+async def generate_narrative(
+    app_id: str,
+    session: AsyncSession = Depends(get_db_session),
+    services=Depends(get_services),
+):
+    reviews = await _get_reviews(app_id, session)
+    review_dicts = [
+        {
+            "content": r.content,
+            "rating": r.rating,
+            "review_id": r.review_id,
+            "vader_label": r.vader_label,
+            "vader_compound": r.vader_compound,
+            "combined_label": r.vader_label,
+        }
+        for r in reviews
+    ]
+
+    metrics_result = services.metrics.calculate(review_dicts)
+
+    texts = [r.content for r in reviews]
+    sentiments = await asyncio.to_thread(services.sentiment.analyze_batch, texts)
+
+    keywords = await asyncio.to_thread(
+        services.keywords.extract_from_negative_reviews, review_dicts
+    )
+    aspects = await asyncio.to_thread(services.aspects.analyze_reviews, review_dicts)
+
+    result = services.insights.generate(
+        sentiments=sentiments,
+        keywords=keywords,
+        aspects=aspects,
+        metrics=metrics_result,
+    )
+
+    narrative = await services.insights.generate_narrative(result["insights"], metrics_result)
+    return {"app_id": app_id, "narrative": narrative}
