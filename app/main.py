@@ -4,6 +4,7 @@ from pathlib import Path
 
 import nltk
 import spacy
+import torch
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
@@ -55,13 +56,15 @@ async def lifespan(app: FastAPI):
     nltk.download("vader_lexicon", quiet=True)
     nlp = spacy.load(settings.spacy_model)
     vader = SentimentIntensityAnalyzer()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info(f"Using device: {device}")
     transformer = hf_pipeline(
         "sentiment-analysis",  # type: ignore[call-overload]
         model=settings.sentiment_model,
-        device=-1,
+        device=device,
         truncation=True,
     )
-    embedding_model = SentenceTransformer(settings.embedding_model)
+    embedding_model = SentenceTransformer(settings.embedding_model, device=device)
 
     scraper = ReviewScraper()
     preprocessing = PreprocessingService(nlp)
