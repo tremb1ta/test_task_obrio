@@ -1,8 +1,8 @@
-import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import httpx
+from loguru import logger
 from sqlalchemy import delete
 from sqlalchemy.dialects.sqlite import insert as sqlite_upsert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +10,31 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.database import Review
 
-logger = logging.getLogger(__name__)
+_UNICODE_CHAR_MAP = str.maketrans(
+    {
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201a": "'",
+        "\u201c": '"',
+        "\u201d": '"',
+        "\u201e": '"',
+        "\u2026": "...",
+        "\u2014": " - ",
+        "\u2013": "-",
+        "\u00a0": " ",
+        "\u200b": "",
+        "\u200c": "",
+        "\u200d": "",
+        "\ufeff": "",
+    }
+)
+
+
+def normalize_text(text: str) -> str:
+    """Normalize Unicode typography characters to ASCII equivalents."""
+    text = text.translate(_UNICODE_CHAR_MAP)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return text.strip()
 
 
 @dataclass
@@ -46,7 +70,7 @@ class ReviewScraper:
         try:
             raw_reviews = await self._fetch_all_pages(app_id, country, max_pages, sort_by)
         except Exception:
-            logger.exception("RSS feed failed for app_id=%s", app_id)
+            logger.exception("RSS feed failed for app_id={app_id}", app_id=app_id)
             raise
 
         await session.execute(delete(Review).where(Review.app_id == app_id))
@@ -81,11 +105,13 @@ class ReviewScraper:
                     all_reviews.extend(reviews)
                 except httpx.HTTPStatusError as exc:
                     logger.warning(
-                        "RSS page %d returned %d, stopping", page, exc.response.status_code
+                        "RSS page {page} returned {status}, stopping",
+                        page=page,
+                        status=exc.response.status_code,
                     )
                     break
                 except httpx.RequestError:
-                    logger.warning("Request error on page %d, stopping", page)
+                    logger.warning("Request error on page {page}, stopping", page=page)
                     break
         return all_reviews
 
@@ -101,8 +127,8 @@ class ReviewScraper:
                     {
                         "app_id": app_id,
                         "review_id": entry["id"]["label"],
-                        "title": entry.get("title", {}).get("label", ""),
-                        "content": entry.get("content", {}).get("label", ""),
+                        "title": normalize_text(entry.get("title", {}).get("label", "")),
+                        "content": normalize_text(entry.get("content", {}).get("label", "")),
                         "rating": int(entry["im:rating"]["label"]),
                         "author": entry.get("author", {}).get("name", {}).get("label", ""),
                         "author_uri": entry.get("author", {}).get("uri", {}).get("label", ""),
@@ -114,7 +140,9 @@ class ReviewScraper:
                     }
                 )
             except (KeyError, ValueError):
-                logger.warning("Skipping malformed entry: %s", entry.get("id", "unknown"))
+                logger.warning(
+                    "Skipping malformed entry: {entry_id}", entry_id=entry.get("id", "unknown")
+                )
         return reviews
 
     @staticmethod
