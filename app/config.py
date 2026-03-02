@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_model: str = "moonshotai/kimi-k2.5"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_max_tokens: int = 512
+    openrouter_max_tokens: int = 2048
     openrouter_temperature: float = 0.3
 
     sentiment_model: str = "distilbert-base-uncased-finetuned-sst-2-english"

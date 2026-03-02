@@ -1,3 +1,4 @@
+import json
 import logging
 
 import httpx
@@ -136,15 +137,26 @@ class InsightsService:
                     json={
                         "model": self._settings.openrouter_model,
                         "messages": [
-                            {"role": "system", "content": "You are a product analyst."},
+                            {
+                                "role": "system",
+                                "content": (
+                                    "You are a product analyst. "
+                                    "Respond as JSON with a single key "
+                                    '"narrative" containing your response.'
+                                ),
+                            },
                             {"role": "user", "content": prompt},
                         ],
                         "max_tokens": self._settings.openrouter_max_tokens,
                         "temperature": self._settings.openrouter_temperature,
+                        "response_format": {"type": "json_object"},
                     },
                 )
                 response.raise_for_status()
-                return response.json()["choices"][0]["message"]["content"]
+                data = response.json()
+                content = data["choices"][0]["message"]["content"]
+                parsed = json.loads(content)
+                return parsed["narrative"]
         except Exception:
             logger.exception("Narrative generation failed")
             return None
