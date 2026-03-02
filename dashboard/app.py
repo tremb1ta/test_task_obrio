@@ -262,7 +262,38 @@ with tab_keywords:
 
 with tab_rag:
     st.subheader("Ask questions about reviews")
-    question = st.text_input("Your question", placeholder="What do users complain about most?")
+
+    if st.button("Auto-suggest questions", type="secondary", key="rag_suggest"):
+        with st.spinner("Generating question suggestions..."):
+            suggest_result = api_post(
+                "/rag/suggest-questions",
+                {"app_id": app_id, "num_questions": 5},
+            )
+            if suggest_result and suggest_result.get("questions"):
+                st.session_state["rag_suggested_questions"] = suggest_result["questions"]
+            else:
+                st.warning(
+                    "Could not generate suggestions. Check that OPENROUTER_API_KEY is configured."
+                )
+
+    if "rag_question" not in st.session_state:
+        st.session_state["rag_question"] = ""
+
+    if st.session_state.get("rag_suggested_questions"):
+        st.caption("Suggested questions (click to select):")
+        for i, q in enumerate(st.session_state["rag_suggested_questions"]):
+            st.button(
+                q,
+                key=f"rag_suggestion_{i}",
+                use_container_width=True,
+                on_click=lambda selected=q: st.session_state.update(rag_question=selected),
+            )
+
+    question = st.text_input(
+        "Your question",
+        key="rag_question",
+        placeholder="What do users complain about most?",
+    )
     top_k = st.slider("Number of source reviews", 1, 20, 5)
 
     if st.button("Ask") and question:

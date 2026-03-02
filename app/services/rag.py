@@ -1,3 +1,4 @@
+import json
 import logging
 
 import chromadb
@@ -104,7 +105,8 @@ class RAGService:
                 "content": (
                     "You are an app review analyst. Answer questions based strictly on "
                     "the provided user reviews. Cite specific reviews when possible. "
-                    "Be concise and factual."
+                    "Be concise and factual. "
+                    'Respond as JSON with a single key "answer" containing your response.'
                 ),
             },
             {
@@ -129,13 +131,15 @@ class RAGService:
                         "messages": messages,
                         "max_tokens": self._settings.openrouter_max_tokens,
                         "temperature": self._settings.openrouter_temperature,
+                        "response_format": {"type": "json_object"},
                     },
                 )
                 response.raise_for_status()
                 data = response.json()
-                answer = data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"]["content"]
+                parsed = json.loads(content)
                 return {
-                    "answer": answer,
+                    "answer": parsed["answer"],
                     "model_used": self._settings.openrouter_model,
                     "mode": "rag",
                 }
@@ -146,6 +150,58 @@ class RAGService:
                 "model_used": None,
                 "mode": "retrieval_only",
             }
+
+    async def suggest_questions(self, insights_summary: str, num_questions: int = 5) -> dict:
+        if not self._settings.openrouter_api_key:
+            return {"questions": [], "model_used": None}
+
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are an app review analyst. Based on the provided insights summary, "
+                    "generate questions that a product manager would ask to better understand "
+                    "user feedback. "
+                    'Respond as JSON with a single key "questions" containing a list of strings.'
+                ),
+            },
+            {
+                "role": "user",
+                "content": (
+                    f"Based on these app review insights:\n\n{insights_summary}\n\n"
+                    f"Generate exactly {num_questions} specific, actionable questions "
+                    "a product manager would ask about these reviews."
+                ),
+            },
+        ]
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{self._settings.openrouter_base_url}/chat/completions",
+                    headers={
+                        "Authorization": f"Bearer {self._settings.openrouter_api_key}",
+                        "Content-Type": "application/json",
+                    },
+                    json={
+                        "model": self._settings.openrouter_model,
+                        "messages": messages,
+                        "max_tokens": self._settings.openrouter_max_tokens,
+                        "temperature": self._settings.openrouter_temperature,
+                        "response_format": {"type": "json_object"},
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+                content = data["choices"][0]["message"]["content"]
+                parsed = json.loads(content)
+                return {
+                    "questions": parsed["questions"][:num_questions],
+                    "model_used": self._settings.openrouter_model,
+                }
+        except Exception:
+            logger.exception("OpenRouter call failed for suggest_questions")
+            return {"questions": [], "model_used": None}
 
     async def query(self, app_id: str, question: str, top_k: int = 5) -> dict:
         retrieved = self.retrieve(app_id, question, top_k)

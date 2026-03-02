@@ -117,6 +117,17 @@ class SentimentResponse(BaseModel):
     results: list[SentimentResult]
 
 
+class SuggestQuestionsRequest(BaseModel):
+    app_id: str
+    num_questions: int = Field(default=5, ge=1, le=20)
+
+
+class SuggestQuestionsResponse(BaseModel):
+    app_id: str
+    questions: list[str]
+    model_used: str | None
+
+
 class RAGQueryRequest(BaseModel):
     app_id: str
     question: str = Field(min_length=5, max_length=1000)

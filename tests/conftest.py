@@ -73,6 +73,9 @@ def mock_services():
     services.aspects.analyze_reviews = MagicMock(return_value=[])
     services.insights.generate = MagicMock(return_value={"insights": [], "narrative": None})
     services.rag.index_reviews = MagicMock(return_value=0)
+    services.rag.suggest_questions = AsyncMock(
+        return_value={"questions": ["What are the top complaints?"], "model_used": "test-model"}
+    )
     services.rag.query = AsyncMock(
         return_value={
             "app_id": "test",

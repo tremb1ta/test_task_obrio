@@ -42,3 +42,10 @@ async def test_fallback_without_api_key(rag_service):
     result = await rag_service.generate_answer("test question", [])
     assert result["mode"] == "retrieval_only"
     assert result["answer"] is None
+
+
+@pytest.mark.asyncio
+async def test_suggest_questions_without_api_key(rag_service):
+    result = await rag_service.suggest_questions("some insights", 5)
+    assert result["questions"] == []
+    assert result["model_used"] is None
