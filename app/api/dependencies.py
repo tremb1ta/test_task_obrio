@@ -4,12 +4,26 @@ from collections.abc import AsyncGenerator
 
 from fastapi import Depends, HTTPException, Request
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from loguru import logger
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models import database as db
+from app.models.database import Review
 
 security = HTTPBasic(auto_error=False)
+
+
+async def ensure_reviews_exist(app_id: str, session: AsyncSession, services) -> None:
+    count = await session.execute(
+        select(func.count()).select_from(Review).where(Review.app_id == app_id)
+    )
+    if count.scalar_one() > 0:
+        return
+    logger.info("No reviews for {app_id}, auto-collecting", app_id=app_id)
+    await services.scraper.collect(app_id, session, country="us", max_pages=10)
+    await services.preprocessing.preprocess_reviews(app_id, session)
 
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:

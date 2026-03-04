@@ -6,7 +6,7 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_db_session, get_services
+from app.api.dependencies import ensure_reviews_exist, get_db_session, get_services
 from app.models.database import Review
 from app.models.schemas import (
     CollectRequest,
@@ -54,7 +54,9 @@ async def collect_reviews(
 async def get_reviews(
     app_id: str,
     session: AsyncSession = Depends(get_db_session),
+    services=Depends(get_services),
 ):
+    await ensure_reviews_exist(app_id, session, services)
     stmt = select(Review).where(Review.app_id == app_id).order_by(Review.review_date.desc())
     result = await session.execute(stmt)
     reviews = result.scalars().all()
@@ -70,7 +72,9 @@ async def download_reviews(
     app_id: str,
     export_format: ExportFormat = Query(default=ExportFormat.JSON, alias="format"),
     session: AsyncSession = Depends(get_db_session),
+    services=Depends(get_services),
 ):
+    await ensure_reviews_exist(app_id, session, services)
     stmt = select(Review).where(Review.app_id == app_id)
     result = await session.execute(stmt)
     reviews = result.scalars().all()

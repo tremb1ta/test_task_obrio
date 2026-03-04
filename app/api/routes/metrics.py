@@ -5,7 +5,7 @@ from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_db_session, get_services
+from app.api.dependencies import ensure_reviews_exist, get_db_session, get_services
 from app.models.database import Review
 from app.models.schemas import (
     AspectsResponse,
@@ -36,6 +36,7 @@ async def get_metrics(
     session: AsyncSession = Depends(get_db_session),
     services=Depends(get_services),
 ):
+    await ensure_reviews_exist(app_id, session, services)
     reviews = await _get_reviews(app_id, session)
     review_dicts = [{"rating": r.rating} for r in reviews]
     result = services.metrics.calculate(review_dicts)
@@ -48,6 +49,7 @@ async def get_sentiment(
     session: AsyncSession = Depends(get_db_session),
     services=Depends(get_services),
 ):
+    await ensure_reviews_exist(app_id, session, services)
     reviews = await _get_reviews(app_id, session)
 
     logger.info("Sentiment analysis requested for {app_id}", app_id=app_id)
@@ -105,6 +107,7 @@ async def get_aspects(
     session: AsyncSession = Depends(get_db_session),
     services=Depends(get_services),
 ):
+    await ensure_reviews_exist(app_id, session, services)
     reviews = await _get_reviews(app_id, session)
     review_dicts = [{"content": r.content, "rating": r.rating} for r in reviews]
     aspects = await asyncio.to_thread(services.aspects.analyze_reviews, review_dicts)
@@ -117,6 +120,7 @@ async def get_insights(
     session: AsyncSession = Depends(get_db_session),
     services=Depends(get_services),
 ):
+    await ensure_reviews_exist(app_id, session, services)
     reviews = await _get_reviews(app_id, session)
     logger.info("Insights generation requested for {app_id}", app_id=app_id)
     review_dicts = [
@@ -156,6 +160,7 @@ async def generate_narrative(
     session: AsyncSession = Depends(get_db_session),
     services=Depends(get_services),
 ):
+    await ensure_reviews_exist(app_id, session, services)
     reviews = await _get_reviews(app_id, session)
     review_dicts = [
         {

@@ -27,17 +27,19 @@ async def test_collect_reviews(test_client, mock_services):
 
 
 @pytest.mark.asyncio
-async def test_get_reviews_empty(test_client):
+async def test_get_reviews_empty(test_client, mock_services):
     resp = await test_client.get("/api/v1/reviews/unknown_app")
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 0
+    mock_services.scraper.collect.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_metrics_404(test_client):
+async def test_metrics_auto_collect(test_client, mock_services):
     resp = await test_client.get("/api/v1/metrics/unknown_app")
     assert resp.status_code == 404
+    mock_services.scraper.collect.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -55,9 +57,10 @@ async def test_download_csv(test_client):
 
 
 @pytest.mark.asyncio
-async def test_rag_query_404(test_client):
+async def test_rag_query_auto_collect(test_client, mock_services):
     resp = await test_client.post(
         "/api/v1/rag/query",
         json={"app_id": "unknown", "question": "What do users think?"},
     )
-    assert resp.status_code == 404
+    assert resp.status_code == 200
+    mock_services.scraper.collect.assert_called_once()

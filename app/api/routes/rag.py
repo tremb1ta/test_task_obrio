@@ -1,11 +1,11 @@
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_db_session, get_services
+from app.api.dependencies import ensure_reviews_exist, get_db_session, get_services
 from app.models.database import Review
 from app.models.schemas import (
     RAGQueryRequest,
@@ -23,14 +23,10 @@ async def rag_query(
     session: AsyncSession = Depends(get_db_session),
     services=Depends(get_services),
 ):
+    await ensure_reviews_exist(body.app_id, session, services)
     stmt = select(Review).where(Review.app_id == body.app_id)
     result = await session.execute(stmt)
     reviews = result.scalars().all()
-    if not reviews:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No reviews found for app_id={body.app_id}. Collect reviews first.",
-        )
 
     review_dicts = [
         {
@@ -54,14 +50,10 @@ async def suggest_questions(
     session: AsyncSession = Depends(get_db_session),
     services=Depends(get_services),
 ):
+    await ensure_reviews_exist(body.app_id, session, services)
     stmt = select(Review).where(Review.app_id == body.app_id)
     result = await session.execute(stmt)
     reviews = list(result.scalars().all())
-    if not reviews:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No reviews found for app_id={body.app_id}. Collect reviews first.",
-        )
 
     review_dicts = [
         {
